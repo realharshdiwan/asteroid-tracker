@@ -10,4 +10,4 @@ nasa api + streamlit viz for asteroid monitoring
 ## run locally
 ```bash
 pip install -r requirements.txt
-streamlit run asteroid_tracker1.py
+streamlit run app.py
