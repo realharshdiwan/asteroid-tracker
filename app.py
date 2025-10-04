@@ -90,14 +90,15 @@ default_end = today + timedelta(days=7)
 MAX_RANGE_DAYS = 7
 
 @st.cache_data(ttl=300, show_spinner=False)
-def fetch_neo_feed(start, end, api_key):
+def fetch_neo_feed(start_str, end_str, api_key):
     url = (
         "https://api.nasa.gov/neo/rest/v1/feed"
-        f"?start_date={start}&end_date={end}&api_key={api_key}"
+        f"?start_date={start_str}&end_date={end_str}&api_key={api_key}"
     )
     resp = requests.get(url, timeout=30)
     resp.raise_for_status()
     return resp.json()
+
 
 # ------------------- Persistence (SQLite) -------------------
 DB_PATH = os.getenv("ASTEROID_DB_PATH", str(Path.cwd() / "app_data.db"))
