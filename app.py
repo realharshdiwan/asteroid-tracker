@@ -82,7 +82,10 @@ st.markdown(
 )
 
 
-API_KEY = os.getenv("NASA_API_KEY") or st.secrets.get("NASA_API_KEY", "")
+try:
+    API_KEY = os.getenv("NASA_API_KEY") or st.secrets.get("NASA_API_KEY", "")
+except st.errors.StreamlitSecretNotFoundError:
+    API_KEY = os.getenv("NASA_API_KEY", "")
 today = date.today()
 default_start = today
 default_end = today + timedelta(days=7)
