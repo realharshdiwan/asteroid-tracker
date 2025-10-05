@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASTRO|COMMAND | Meteor Madness - Team Anantandav</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Hanken+Grotesk:wght@800&display=swap" rel="stylesheet">
+    
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        /* BASE STYLES: Dodo Payments Aesthetic & Smoothness Optimizations */
+        :root {
+            --color-bg-primary: #0C0C14;       /* Deepest Black */
+            --color-bg-secondary: #1A1A22;     /* Subtle contrast sections */
+            --color-accent: #90FF00;           /* Balanced Green Pulse */
+            --color-accent-dark: #70CC00;      
+            --color-text-light: #F0F0F5;       /* Primary Text */
+            --color-text-muted: #8A92A6;       /* Muted gray text */
+            --color-card-bg: rgba(28, 28, 38, 0.7); /* Frosted Glass Card BG */
+            --color-border: #3D3D4A;           
+            --blur-strength: 6px;              
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--color-bg-primary);
+            color: var(--color-text-light);
+            margin: 0;
+            padding: 0;
+            line-height: 1.7;
+            scroll-behavior: smooth;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* --- Global GIF Background (Placeholder for High Reliability) --- */
+        .global-background {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -2; overflow: hidden; pointer-events: none;
+        }
+        .global-background::before {
+            content: '';
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            /* Use a highly compressed, subtle, looping meteor/space animation GIF/WEBP here */
+            background: url('https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdHJyZm0xd211eW94MWZ0ajZ4cDN1cTBsdTFhNjlzMXh3Z3d6enQyZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/kF28H5s09eL0X132Uo/giphy.gif') no-repeat center center fixed;
+            background-size: cover;
+            opacity: 0.1; 
+            filter: brightness(0.6) grayscale(0.5); 
+        }
+
+        /* --- Typography, Gradients, and Layout --- */
+        h1, h2, h3 { font-family: 'Hanken Grotesk', system-ui, sans-serif; font-weight: 800; line-height: 1.2; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 25px; position: relative; }
+        .text-gradient {
+            background: linear-gradient(90deg, var(--color-accent), #70E000, #4CAF50);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+
+        /* --- CTA Buttons --- */
+        .cta-button {
+            display: inline-block; background-color: var(--color-accent); color: var(--color-bg-primary);
+            padding: 16px 40px; font-weight: 800; border-radius: 6px; font-size: 1.15em;
+            box-shadow: 0 6px 20px rgba(144, 255, 0, 0.3); border: none; text-decoration: none;
+            transition: all 0.2s ease-in-out;
+        }
+        .cta-button:hover { background-color: var(--color-accent-dark); transform: translateY(-2px); box-shadow: 0 8px 25px rgba(144, 255, 0, 0.4); }
+        .secondary-link { color: var(--color-accent); text-decoration: none; font-weight: 600; font-size: 0.95em; margin-top: 25px; display: block; transition: color 0.3s; }
+        
+        /* --- Header/Nav (Frosted Glass) --- */
+        header { 
+            padding: 20px 0; border-bottom: 1px solid var(--color-border); 
+            background-color: rgba(12, 12, 20, 0.85); 
+            backdrop-filter: blur(var(--blur-strength)); 
+            position: sticky; top: 0; z-index: 1000; 
+        }
+        .nav-content { display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 2em; font-weight: 800; letter-spacing: -0.7px; color: var(--color-accent); }
+        .logo span { color: var(--color-text-light); }
+        nav a { color: var(--color-text-muted); text-decoration: none; margin-left: 35px; font-weight: 600; transition: color 0.3s; position: relative; }
+
+        /* --- Visualizer Area (UPDATED FOCUS) --- */
+        .visual-demo-area {
+            position: relative; width: 100%; height: 550px; background-color: rgba(0, 0, 0, 0.6);
+            border-radius: 10px; border: 1px solid var(--color-border);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); margin-top: 80px;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 1.8em; color: var(--color-text-muted); overflow: hidden;
+            background-image: url('https://via.placeholder.com/1200x550/1A1A22/90FF00?text=ASTRO|COMMAND+SCREENSHOT+%2F+3D+MOCKUP'); /* Placeholder for your actual visual */
+            background-size: cover;
+            background-position: center;
+        }
+        .visual-demo-area::before { 
+            content: 'VISUALIZATION CORE: Apophis Trajectory MOCKUP'; /* Changed from LIVE to MOCKUP/CORE */
+            position: absolute; top: 20px; left: 25px; font-size: 0.7em; color: var(--color-accent); letter-spacing: 1px; font-weight: 600; opacity: 0.9; 
+        }
+        .visual-demo-area p {
+            /* Hide the large text placeholder if you use a screenshot background */
+            display: none; 
+        }
+
+
+        /* --- Metric and Card Styles (Frosted Cards) --- */
+        .metrics-grid { display: flex; justify-content: space-around; gap: 20px; padding: 40px 0; text-align: center; }
+        .metric-item {
+            flex: 1; padding: 25px; background-color: var(--color-card-bg); border-radius: 8px; border: 1px solid var(--color-border);
+        }
+        .metric-item strong {
+            display: block; font-size: 2.8em; font-weight: 800; line-height: 1;
+            background: linear-gradient(0deg, var(--color-accent), var(--color-text-light) 60%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 40px; }
+        .feature-card {
+            background-color: var(--color-card-bg); padding: 35px; border-radius: 10px; text-align: left;
+            border: 1px solid var(--color-border); transition: transform 0.3s ease-out, border-color 0.3s;
+            backdrop-filter: blur(var(--blur-strength));
+        }
+        .feature-card:hover { border-color: var(--color-accent); transform: translateY(-5px); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); }
+        .icon { font-size: 3em; color: var(--color-accent); margin-bottom: 10px; }
+
+        /* --- Structural Sections --- */
+        section { padding: 100px 0; position: relative; background-color: var(--color-bg-secondary); border-top: 1px solid var(--color-border); }
+        section:nth-child(even) { background-color: var(--color-bg-primary); }
+        .section-header { font-size: 3.5em; margin-bottom: 20px; letter-spacing: -1.5px; }
+        .section-subtext { font-size: 1.2em; max-width: 900px; margin: 0 auto 80px; }
+        .final-cta { padding: 120px 0; text-align: center; }
+        footer { text-align: center; padding: 40px 0; border-top: 1px solid var(--color-border); font-size: 0.8em; color: #5F6B82; background-color: var(--color-bg-secondary); }
+
+        /* Responsive CSS */
+        @media (max-width: 1024px) { .hero h1 { font-size: 3.5em; } .metrics-grid { flex-direction: column; } .metric-item { margin-bottom: 20px; } .feature-grid { grid-template-columns: 1fr 1fr; } }
+        @media (max-width: 768px) { .hero h1 { font-size: 2.8em; } .feature-grid { grid-template-columns: 1fr; } .nav-content { flex-direction: column; } nav { margin-top: 15px; } }
+    </style>
+</head>
+<body>
+
+    <div class="global-background"></div>
+
+    <header>
+        <div class="container nav-content">
+            <div class="logo">ASTRO<span>|COMMAND</span></div>
+            <nav>
+                <a href="#features">Features</a>
+                <a href="#data">Data</a>
+                <a href="#team">Team</a>
+                <a href="[Your Devpost Submission Link]">Devpost</a>
+            </nav>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <h1><span class="text-gradient">Planetary Defense</span>. In Your Hands.</h1>
+            <p>We built the dual-mode tool to visualize the asteroid threat and model mitigation strategies—the solution to the **Meteor Madness** challenge by **Team Anantandav**.</p>
+            
+            <a href="[LINK TO YOUR LIVE DEMO PAGE]" class="cta-button">
+                🚀 Launch Interactive Demo
+            </a>
+            <a href="#features" class="secondary-link">Explore Dual-Mode System →</a>
+
+            <div class="visual-demo-area">
+                </div>
+        </div>
+    </section>
+
+    <section id="data" class="text-center" style="padding: 60px 0;">
+        <div class="container">
+            <h2 class="section-header" style="margin-bottom: 40px;">Apophis Threat Profile: <span class="text-gradient">CNEOS Data Summary</span></h2>
+            
+            <div class="metrics-grid">
+                <div class="metric-item">
+                    <strong>~340m</strong>
+                    <span>Estimated Diameter (NASA)</span>
+                </div>
+                <div class="metric-item">
+                    <strong>38,000 km</strong>
+                    <span>Closest Approach Distance (April 13, 2029)</span>
+                </div>
+                <div class="metric-item">
+                    <strong>15.03 km/s</strong>
+                    <span>Relative Velocity at Earth Encounter</span>
+                </div>
+                <div class="metric-item">
+                    <strong><span class="text-gradient">0.1</span> LD</strong>
+                    <span>Distance in Lunar Distances (1 LD $\approx 384,400\ \text{km}$)</span>
+                </div>
+            </div>
+            <p style="font-size: 0.9em; margin-top: 30px; color: var(--color-text-muted);">*Metrics derived from NASA/JPL CNEOS and Sentry Data. Used for our core tracking and simulation initialization.</p>
+        </div>
+    </section>
+    
+    <section id="features" class="text-center">
+        <div class="container">
+            <h2 class="section-header">Dual-Mode Command <span class="text-gradient">Capabilities</span></h2>
+            <p class="section-subtext">Combining the fidelity of orbital tracking with the utility of real-time impact simulation for actionable insights.</p>
+
+            <div class="feature-grid">
+                
+                <div class="feature-card">
+                    <i class="fa-solid fa-satellite-dish icon"></i>
+                    <h3>Core: Orbital Tracker (3D)</h3>
+                    <p>The **visualization engine** providing a simple, elegant 3D view of NEO trajectories and close-approach paths, directly driven by NASA orbital data.</p>
+                </div>
+
+                <div class="feature-card">
+                    <i class="fa-solid fa-explosion icon"></i>
+                    <h3>Feature: Impact Simulator</h3>
+                    <p>The **simulation module** allowing users to select impact parameters (size, speed, location) to instantly calculate and visualize localized blast radius and seismic effects.</p>
+                </div>
+
+                <div class="feature-card">
+                    <i class="fa-solid fa-crosshairs icon"></i>
+                    <h3>Mitigation Strategy Sandbox</h3>
+                    <p>Test deflection scenarios on NEOs like **Bennu** and instantly see the change in the asteroid's orbital path ($\Delta V$ needed) and reduced risk profile.</p>
+                </div>
+
+                <div class="feature-card">
+                    <i class="fa-solid fa-chart-line icon"></i>
+                    <h3>Risk Reporting & Analysis</h3>
+                    <p>Automatically calculate and display risk using the **Palermo and Torino Scales**, providing a single, universally understood metric for policymakers.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <i class="fa-solid fa-layer-group icon"></i>
+                    <h3>USGS Geospatial Layering</h3>
+                    <p>Overlay geographical data onto impact zones to identify critical infrastructure, population density, and tsunami risk for ocean impacts.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <i class="fa-solid fa-code icon"></i>
+                    <h3>Developer Access</h3>
+                    <p>Export simulation data and visualizations via a simple, clean API structure, making integration into larger dashboards and documentation effortless.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="team" class="text-center" style="background-color: var(--color-bg-primary);">
+        <div class="container">
+            <h2 class="section-header">Built by <span class="text-gradient">Team Anantandav</span></h2>
+            <p class="section-subtext">A dedicated team of innovators combining space science, data visualization, and engineering to deliver this solution.</p>
+
+            <div class="feature-grid" style="gap: 20px;">
+                <div class="feature-card">
+                    <i class="fa-solid fa-user-astronaut icon" style="font-size: 2em;"></i>
+                    <h3 style="font-size: 1.3em;">Harsh Diwan</h3>
+                </div>
+                <div class="feature-card">
+                    <i class="fa-solid fa-user-gear icon" style="font-size: 2em;"></i>
+                    <h3 style="font-size: 1.3em;">Inesh Malhotra</h3>
+                </div>
+                <div class="feature-card">
+                    <i class="fa-solid fa-user-tie icon" style="font-size: 2em;"></i>
+                    <h3 style="font-size: 1.3em;">Amit Kumar Singh</h3>
+                </div>
+                <div class="feature-card">
+                    <i class="fa-solid fa-user-chart icon" style="font-size: 2em;"></i>
+                    <h3 style="font-size: 1.3em;">Shashikant Ghadai</h3>
+                </div>
+            </div>
+        </div>
+    </section>
+
+
+    <section class="final-cta text-center">
+        <div class="container">
+            <h2 class="text-gradient">Protecting the Planet is a Click Away.</h2>
+            <p>Ready to visualize the future of planetary defense? Launch our demo and put the power of integrated space and earth science in your hands.</p>
+            
+            <a href="[LINK TO YOUR LIVE DEMO PAGE]" class="cta-button">
+                START YOUR SIMULATION NOW
+            </a>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>A <span class="text-accent">NASA Space Apps Challenge</span> Project | Built by **Team Anantandav**</p>
+            <p>
+                <a href="[LINK TO YOUR LIVE DEMO PAGE]">Live Demo</a> | 
+                <a href="[LINK TO YOUR GITHUB REPO]">GitHub Repo</a> | 
+                <a href="[LINK TO YOUR DEVPOST PAGE]">Official Devpost</a> |
+                <a href="#">Contact Team</a>
+            </p>
+        </div>
+    </footer>
+
+</body>
+</html>
