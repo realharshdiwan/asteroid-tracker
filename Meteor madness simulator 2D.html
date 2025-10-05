@@ -1,0 +1,427 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Meteor Madness — Impact & Deflection Simulator</title>
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+<style>
+  :root{
+    --bg:#050614; --panel:#0f1724; --accent:#66fcf1; --accent2:#ffdd57;
+    --muted:#aeb7c1;
+  }
+  body{ margin:0; font-family:Inter,Arial,Helvetica,sans-serif; background:linear-gradient(180deg,#000010 0%, #041028 100%); color:#e6eef6; }
+  header { padding:20px 24px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
+  .brand { display:flex; gap:12px; align-items:center; }
+  .brand h1{ margin:0; font-size:20px; color:var(--accent2); text-shadow:0 0 10px rgba(255,221,87,0.15);}
+  .brand p{ margin:0; color:var(--muted); font-size:13px; }
+  main{ display:flex; gap:16px; padding:12px; }
+  .left { flex:1; min-width:320px; }
+  .right { width:420px; min-width:300px; max-width:480px; }
+  #map { height:72vh; border-radius:8px; box-shadow:0 6px 30px rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.04);}
+  .panel { background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); padding:12px; border-radius:10px; border:1px solid rgba(255,255,255,0.03); box-shadow:0 6px 18px rgba(0,0,0,0.6); }
+  label{ display:block; font-size:13px; color:var(--muted); margin-top:8px; }
+  input[type=number], input[type=range], select { width:100%; padding:8px 10px; margin-top:6px; border-radius:6px; border:1px solid rgba(255,255,255,0.06); background:#071226; color:#fff; font-size:14px; }
+  button { background:var(--accent2); color:#000; border:none; padding:10px 12px; border-radius:8px; cursor:pointer; font-weight:700; box-shadow:0 6px 18px rgba(255,221,87,0.08); }
+  .muted { color:var(--muted); font-size:13px; }
+  .results { margin-top:12px; background:#071227; padding:10px; border-radius:8px; color:#e6eef6; font-size:14px; border:1px solid rgba(255,255,255,0.03); }
+  .row { display:flex; gap:8px; align-items:center; }
+  .small { font-size:12px; color:var(--muted); }
+  canvas#orbitCanvas{ width:100%; height:220px; display:block; border-radius:8px; background:linear-gradient(180deg,#011026, #00121a); margin-top:10px; }
+  footer { padding:12px 24px; font-size:13px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  .badge{ background:rgba(255,255,255,0.02); padding:6px 8px; border-radius:8px; font-weight:600; color:var(--accent); border:1px solid rgba(102,252,241,0.06); }
+  a.link{ color:var(--accent); text-decoration:underline; }
+  @media (max-width:900px){ main { flex-direction:column; } .right { width:100%; } #map{ height:55vh; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div>
+      <h1>🚀 Meteor Madness</h1>
+      <p class="small">Interactive asteroid impact & deflection simulator — Demo</p>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:12px;align-items:center">
+    <div class="badge">Impactor-2025 Demo</div>
+    <div class="small">Live demo via GitHub Pages</div>
+  </div>
+</header>
+
+<main>
+  <div class="left">
+    <div id="map" class="panel"></div>
+    <canvas id="orbitCanvas"></canvas>
+  </div>
+
+  <aside class="right">
+    <div class="panel">
+      <label>Asteroid source</label>
+      <div class="row">
+        <select id="neoSelect">
+          <option value="manual">Manual input (default)</option>
+          <option value="sample">Load sample NEO: Impactor-2025 (simulated)</option>
+          <option value="fetch">Fetch random NEO from NASA (DEMO_KEY)</option>
+        </select>
+        <button id="loadNeoBtn">Load</button>
+      </div>
+
+      <label>Diameter (m)</label>
+      <input type="number" id="diameter" value="100" min="1" step="1" />
+
+      <label>Velocity (km/s)</label>
+      <input type="number" id="velocity" value="20" min="1" step="0.1" />
+
+      <label>Impact Angle (°) — 0 = shallow, 90 = steep</label>
+      <input type="number" id="angle" value="45" min="0" max="90" />
+
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,0.03);margin:10px 0;">
+
+      <label>Deflection Power (%)</label>
+      <input type="range" id="deflectPower" min="0" max="100" value="20" />
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="small">Power (0–100%)</div>
+        <div id="deflectPowerLabel" class="small">20%</div>
+      </div>
+
+      <label>Deflection Angle (°)</label>
+      <input type="number" id="deflectAngle" value="30" min="0" max="360" />
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button id="simulateBtn">💥 Simulate Impact</button>
+        <button id="deflectBtn">🛡 Deflect Earth</button>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button id="startOrbitBtn">▶ Start Orbit</button>
+        <button id="stopOrbitBtn">■ Stop Orbit</button>
+      </div>
+
+      <div class="results" id="results" aria-live="polite">
+        <div><strong>Impact Energy:</strong> —</div>
+        <div><strong>Estimated Crater Diameter:</strong> —</div>
+        <div><strong>Impact Location:</strong> —</div>
+      </div>
+
+      <p class="small" style="margin-top:10px;">
+        How to use: Click the map to choose an impact point (or let it pick random). Enter asteroid diameter & velocity → Simulate. Then test deflection using power & angle. The map shows original impact zones (red/orange/blue) and the deflected outcome (green).
+      </p>
+    </div>
+
+    <div class="panel" style="margin-top:12px;">
+      <h3 style="margin:0 0 8px 0;">Data & Credits</h3>
+      <div class="small">NEO data: NASA NEO API (DEMO_KEY) — optional</div>
+      <div class="small">Topography / hazard overlays: USGS (not fully integrated in demo)</div>
+      <div style="margin-top:10px">
+        <a class="link" href="#" id="openRepo">Open project on GitHub</a>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  <div class="small">Built for NASA Space Apps — Meteor Madness</div>
+  <div class="small">Data: NASA NEO API • Simulation: simplified physics</div>
+</footer>
+
+<!-- Dependencies -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+// ---------- BASE CODE KEPT AS IS ----------
+const map = L.map('map', { worldCopyJump:true }).setView([20,0], 2);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 7, attribution: '' }).addTo(map);
+
+let impactCircle=null, seismicCircle=null, tsunamiCircle=null, deflectMarker=null, originalMarker=null;
+let currentImpact = null;
+let currentCraterKm = 0;
+let orbitAnim = null;
+let orbitRunning = false;
+let originalImpactCoords = null;
+let deflectedImpactCoords = null;
+
+function calcImpact(diameter_m, velocity_m_s, density=3000){
+  const r = diameter_m/2;
+  const volume = (4/3) * Math.PI * Math.pow(r, 3);
+  const mass = volume * density;
+  const energyJ = 0.5 * mass * Math.pow(velocity_m_s,2);
+  const energyTNT = energyJ / 4.184e9;
+  const energyMegatons = energyTNT / 1e6;
+  const energyKilotons = energyTNT / 1000;
+  const craterKm = (1.161 * Math.pow(Math.max(energyKilotons,1), 1/3.4));
+  return { energyJ, energyTNT, energyMegatons, craterKm, mass };
+}
+
+function toFixedSafe(v, decimals=2){ return Number(v).toFixed(decimals); }
+
+function showImpactOnMap(lat, lon, craterKm){
+  if (impactCircle) map.removeLayer(impactCircle);
+  if (seismicCircle) map.removeLayer(seismicCircle);
+  if (tsunamiCircle) map.removeLayer(tsunamiCircle);
+  if (originalMarker) map.removeLayer(originalMarker);
+
+  impactCircle = L.circle([lat,lon], { radius: craterKm*500, color:'rgba(255,80,80,0.9)', fill:false }).addTo(map);
+  seismicCircle = L.circle([lat,lon], { radius: craterKm*2000, color:'rgba(255,150,50,0.7)', fill:false }).addTo(map);
+  tsunamiCircle = L.circle([lat,lon], { radius: craterKm*5000, color:'rgba(80,160,255,0.5)', fillOpacity:0.08 }).addTo(map);
+
+  originalMarker = L.circleMarker([lat,lon], {radius:6, color:'#ff6b6b'}).addTo(map);
+  map.setView([lat,lon], 4);
+}
+
+function showDeflectedOnMap(lat, lon){
+  if (deflectMarker) map.removeLayer(deflectMarker);
+  deflectMarker = L.circleMarker([lat,lon], {radius:8, color:'#7fff7f'}).addTo(map);
+}
+
+map.on('click', function(e){
+  currentImpact = { lat:e.latlng.lat, lon:e.latlng.lng };
+  originalImpactCoords = currentImpact;
+  document.getElementById('results').innerHTML = `<div><strong>Impact Location:</strong> ${currentImpact.lat.toFixed(3)}, ${currentImpact.lon.toFixed(3)}</div>`;
+  if (currentCraterKm>0) showImpactOnMap(currentImpact.lat, currentImpact.lon, currentCraterKm);
+});
+
+const diameterEl = document.getElementById('diameter');
+const velocityEl = document.getElementById('velocity');
+const angleEl = document.getElementById('angle');
+const deflectPowerEl = document.getElementById('deflectPower');
+const deflectPowerLabel = document.getElementById('deflectPowerLabel');
+const deflectAngleEl = document.getElementById('deflectAngle');
+const simulateBtn = document.getElementById('simulateBtn');
+const deflectBtn = document.getElementById('deflectBtn');
+const resultsEl = document.getElementById('results');
+const startOrbitBtn = document.getElementById('startOrbitBtn');
+const stopOrbitBtn = document.getElementById('stopOrbitBtn');
+const loadNeoBtn = document.getElementById('loadNeoBtn');
+const neoSelect = document.getElementById('neoSelect');
+const openRepo = document.getElementById('openRepo');
+
+openRepo.href = window.location.origin + window.location.pathname;
+deflectPowerEl.addEventListener('input', ()=>{ deflectPowerLabel.textContent = deflectPowerEl.value + '%' });
+
+// ---------- NEW: STARFIELD & ASTEROID VFX ----------
+const canvas = document.getElementById('orbitCanvas');
+const ctx = canvas.getContext('2d');
+let t = 0;
+
+function resizeCanvas(){
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = canvas.clientWidth * ratio;
+  canvas.height = canvas.clientHeight * ratio;
+  ctx.setTransform(ratio,0,0,ratio,0,0);
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// twinkling stars
+const stars = [];
+for(let i=0;i<150;i++){
+  stars.push({
+    x: Math.random()*canvas.width,
+    y: Math.random()*canvas.height,
+    r: Math.random()*1.5+0.5,
+    opacity: Math.random()
+  });
+}
+function drawStars(){
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  stars.forEach(s=>{
+    ctx.globalAlpha = s.opacity;
+    ctx.beginPath();
+    ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    ctx.fill();
+    s.opacity += (Math.random()*0.02-0.01);
+    if (s.opacity>1) s.opacity=1;
+    if (s.opacity<0) s.opacity=0;
+  });
+  ctx.globalAlpha = 1;
+}
+
+// updated orbit frame
+function drawOrbitFrame(){
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  drawStars();
+
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const cx = w/2, cy = h/2;
+
+  ctx.beginPath();
+  ctx.arc(cx,cy,36,0,Math.PI*2);
+  ctx.fillStyle = '#1f7ae6';
+  ctx.fill();
+
+  const R = Math.min(w,h)/2.5;
+  ctx.beginPath();
+  ctx.ellipse(cx,cy,R,R*0.6,0,0,Math.PI*2);
+  ctx.strokeStyle = 'rgba(150,200,255,0.15)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  const angle = (t/80) % (Math.PI*2);
+  const ax = cx + R * Math.cos(angle);
+  const ay = cy + R*0.6 * Math.sin(angle);
+  ctx.beginPath();
+  ctx.arc(ax,ay,6,0,Math.PI*2);
+  ctx.fillStyle = '#ff8a3d';
+  ctx.shadowColor = '#ff8a3d';
+  ctx.shadowBlur = 15;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  if (deflectedImpactCoords){
+    const angle2 = (t/80 + 1.2) % (Math.PI*2);
+    const bx = cx + (R*0.9) * Math.cos(angle2);
+    const by = cy + (R*0.6*0.9) * Math.sin(angle2);
+    ctx.beginPath();
+    ctx.arc(bx,by,6,0,Math.PI*2);
+    ctx.fillStyle = '#7fff7f';
+    ctx.shadowColor = '#7fff7f';
+    ctx.shadowBlur = 15;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  ctx.fillStyle = 'rgba(220,220,255,0.8)';
+  ctx.font = '13px Arial';
+  ctx.fillText('Earth', cx-16, cy+60);
+
+  t += 1;
+  if (orbitRunning) orbitAnim = requestAnimationFrame(drawOrbitFrame);
+}
+
+startOrbitBtn.addEventListener('click', ()=>{ if (!orbitRunning){ orbitRunning = true; drawOrbitFrame(); } });
+stopOrbitBtn.addEventListener('click', ()=>{ orbitRunning = false; if (orbitAnim) cancelAnimationFrame(orbitAnim); });
+
+// ---------- SIMULATE + EXPLOSION ----------
+simulateBtn.addEventListener('click', ()=>{
+  let d = parseFloat(diameterEl.value) || 100;
+  let v_kms = parseFloat(velocityEl.value) || 20;
+  let v = v_kms * 1000;
+  let ang = parseFloat(angleEl.value) || 45;
+
+  if (!currentImpact){
+    const lat = (Math.random()*140 - 70);
+    const lon = (Math.random()*360 - 180);
+    currentImpact = { lat, lon };
+    originalImpactCoords = currentImpact;
+  }
+
+  const res = calcImpact(d, v);
+  currentCraterKm = res.craterKm;
+
+  resultsEl.innerHTML = `<div><strong>Impact Energy:</strong> ${toFixedSafe(res.energyMegatons,2)} MT TNT</div>
+                         <div><strong>Estimated Crater Diameter:</strong> ${toFixedSafe(res.craterKm,2)} km</div>
+                         <div><strong>Impact Location:</strong> ${currentImpact.lat.toFixed(3)}, ${currentImpact.lon.toFixed(3)}</div>`;
+
+  showImpactOnMap(currentImpact.lat, currentImpact.lon, currentCraterKm);
+
+  originalImpactCoords = {...currentImpact};
+  deflectedImpactCoords = null;
+
+  // animated explosion
+  animateImpactExplosion(currentImpact.lat, currentImpact.lon, currentCraterKm);
+});
+
+// explosion animation
+let explosionAnim = null;
+function animateImpactExplosion(lat, lon, craterKm) {
+  if (explosionAnim) cancelAnimationFrame(explosionAnim);
+  let radius = 0;
+  let growing = true;
+  const maxRadius = craterKm * 800;
+
+  function frame() {
+    if (!impactCircle) return;
+
+    if (growing) radius += 30;
+    else radius -= 30;
+    if (radius >= maxRadius) growing = false;
+    if (radius <= 0) growing = true;
+
+    impactCircle.setRadius(radius);
+    explosionAnim = requestAnimationFrame(frame);
+  }
+
+  frame();
+}
+
+// ---------- DEFLECT EARTH ----------
+deflectBtn.addEventListener('click', ()=>{
+  if (!originalImpactCoords){
+    alert('Simulate an impact (or click map) first.');
+    return;
+  }
+  const power = parseFloat(deflectPowerEl.value)/100;
+  const angleDeg = parseFloat(deflectAngleEl.value) || 0;
+
+  const baseOffsetKm = Math.max(currentCraterKm*10, 50);
+  const offsetKm = baseOffsetKm * power * (1 + Math.random()*0.3);
+
+  const angRad = angleDeg * Math.PI/180;
+  const dLat = (offsetKm / 111.32) * Math.cos(angRad);
+  const dLon = (offsetKm / (111.32 * Math.cos(originalImpactCoords.lat * Math.PI/180))) * Math.sin(angRad);
+
+  const deflat = originalImpactCoords.lat + dLat;
+  const deflon = originalImpactCoords.lon + dLon;
+
+  deflectedImpactCoords = { lat: deflat, lon: deflon };
+  showDeflectedOnMap(deflat, deflon);
+
+  if (window.deflectLine) map.removeLayer(window.deflectLine);
+  window.deflectLine = L.polyline([[originalImpactCoords.lat, originalImpactCoords.lon], [deflat, deflon]], { color:'#7fff7f', dashArray:'6' }).addTo(map);
+
+  resultsEl.innerHTML += `<div><strong>Deflection Result:</strong> New impact at ${deflat.toFixed(3)}, ${deflon.toFixed(3)} (offset ≈ ${offsetKm.toFixed(0)} km)</div>`;
+
+  const bounds = L.latLngBounds([[originalImpactCoords.lat, originalImpactCoords.lon],[deflat, deflon]]);
+  map.fitBounds(bounds.pad(0.5));
+});
+
+// ---------- NASA NEO FETCH ----------
+loadNeoBtn.addEventListener('click', async ()=>{
+  const mode = neoSelect.value;
+  if (mode === 'sample'){
+    diameterEl.value = 150; velocityEl.value = 25; angleEl.value = 55;
+    alert('Loaded sample Impactor-2025 values (diameter 150m, velocity 25 km/s). Click Simulate.');
+    return;
+  }
+  if (mode === 'fetch'){
+    const apiKey = 'DEMO_KEY';
+    try {
+      simulateBtn.disabled = true;
+      loadNeoBtn.disabled = true;
+      const resp = await fetch(`https://api.nasa.gov/neo/rest/v1/neo/browse?api_key=${apiKey}`);
+      const json = await resp.json();
+      const items = json.near_earth_objects;
+      if (!items || items.length===0){ alert('No NEOs returned'); return; }
+      const pick = items[Math.floor(Math.random()*items.length)];
+      const diam = pick.estimated_diameter.meters.estimated_diameter_max || 50;
+      diameterEl.value = Math.round(diam);
+      let vel = 20;
+      if (pick.close_approach_data && pick.close_approach_data.length>0){
+        const vStr = pick.close_approach_data[0].relative_velocity.kilometers_per_second;
+        vel = Number(vStr) || vel;
+      }
+      velocityEl.value = toFixedSafe(vel,2);
+      alert(`Loaded NEO: ${pick.name} (diameter ~${Math.round(diam)} m, velocity ~${toFixedSafe(vel,2)} km/s). Press Simulate.`);
+    } catch (err){
+      console.error(err);
+      alert('Error fetching NEO (rate limits may apply).');
+    } finally {
+      simulateBtn.disabled = false;
+      loadNeoBtn.disabled = false;
+    }
+    return;
+  }
+  alert('Choose a mode from the dropdown first.');
+});
+
+</script>
+</body>
+</html>
+
