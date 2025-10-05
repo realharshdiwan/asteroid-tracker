@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEO Meteor Simulator</title>
+<style>
+  body { margin:0; overflow:hidden; background:#01021a; font-family:sans-serif; color:#fff;}
+  #globeViz { width:100vw; height:100vh; position:relative; }
+  #globeViz canvas { position:absolute; top:0; left:0; z-index:0; }
+  #hud { position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.5); padding:10px 15px; border-radius:10px; font-size:14px; z-index:1000; pointer-events:auto; }
+  #controls { position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.5); padding:10px 15px; border-radius:10px; font-size:14px; width:220px; z-index:1000; pointer-events:auto; }
+  input, button { margin-top:5px; margin-bottom:5px; width:100%; padding:5px; border-radius:5px; border:none; }
+  button { cursor:pointer; background:#ffdd57; color:#000; font-weight:bold; }
+  #neoPanel { position:absolute; bottom:10px; right:10px; width:360px; max-height:46vh; overflow:auto; background:rgba(0,0,0,0.5); padding:10px 15px; border-radius:10px; font-size:13px; z-index:1000; pointer-events:auto; }
+  #neoList { list-style:none; padding:0; margin:8px 0 0 0; }
+  #neoList li { padding:6px 8px; background:rgba(255,255,255,0.06); margin-bottom:6px; border-radius:6px; cursor:pointer; }
+  #neoList li:hover { background:rgba(255,221,87,0.25); }
+  .neo-row { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .neo-btn { background:#57ff9a; color:#000; font-weight:bold; border:none; padding:4px 8px; border-radius:6px; cursor:pointer; }
+  .neo-meta { opacity:0.85; font-size:12px; }
+  .neo-danger { color:#ff8080; font-weight:bold; }
+</style>
+</head>
+<body>
+
+<div id="globeViz"></div>
+<div id="hud">🚀 Click "Simulate Impact" to launch a meteor at a random location!<br><small>Or click on the globe to target a specific location</small></div>
+<div id="controls">
+  <label>Asteroid Diameter (m)</label>
+  <input type="number" id="diameter" value="120" min="1"/>
+  <label>Velocity (km/s)</label>
+  <input type="number" id="velocity" value="20" min="1"/>
+  <label>Impact Angle (°)</label>
+  <input type="number" id="angle" value="45" min="0" max="90" step="1"/>
+  <button id="simulateBtn">Simulate Impact</button>
+</div>
+
+<div id="neoPanel">
+  <div style="font-weight:bold; margin-bottom:6px;">NEO Tracker</div>
+  <label>NASA API Key</label>
+  <input id="neoApiKey" placeholder="DEMO_KEY (default)"/>
+  <label>Date</label>
+  <input id="neoDate" type="date"/>
+  <button id="neoFetchBtn">Fetch Near-Earth Objects</button>
+  <div id="neoStatus" class="neo-meta">Enter date and fetch.</div>
+  <ul id="neoList"></ul>
+  <div class="neo-meta">Data: NASA NeoWs feed</div>
+  <div class="neo-meta">Tip: click an item to simulate approach</div>
+  <button id="neoDemoBtn" class="neo-btn" style="margin-top:8px;">Load Today (Demo)</button>
+  <div id="neoSelected" class="neo-meta" style="margin-top:6px;"></div>
+</div>
+
+<script src="https://unpkg.com/three@0.150.1/build/three.min.js"></script>
+<script src="https://unpkg.com/three-globe@2.27.2"></script>
+
+<script>
+// Debug logging
+console.log('🚀 Starting NEO Meteor Simulator...');
+
+// Toggle enhanced effects. Set to true to use simpler, stable visuals
+const USE_SIMPLE_EFFECTS = true;
+
+const container = document.getElementById('globeViz');
+const diameterEl = document.getElementById('diameter');
+const velocityEl = document.getElementById('velocity');
+const angleEl = document.getElementById('angle');
+const hud = document.getElementById('hud');
+const simulateBtn = document.getElementById('simulateBtn');
+const neoApiKeyEl = document.getElementById('neoApiKey');
+const neoDateEl = document.getElementById('neoDate');
+const neoFetchBtn = document.getElementById('neoFetchBtn');
+const neoListEl = document.getElementById('neoList');
+const neoStatusEl = document.getElementById('neoStatus');
+const neoDemoBtn = document.getElementById('neoDemoBtn');
+const neoSelectedEl = document.getElementById('neoSelected');
+
+// Global error reporting to HUD
+window.addEventListener('error', (e)=>{ try { hud.innerHTML = `❌ Script error: ${e.message}`; } catch(_){} });
+window.addEventListener('unhandledrejection', (e)=>{ try { hud.innerHTML = `❌ Promise error: ${e.reason}`; } catch(_){} });
+
+// === Globe setup ===
+const Globe = new ThreeGlobe()
+  .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
+  .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
+  .showAtmosphere(true)
+  .atmosphereColor('#00ffff')
+  .atmosphereAltitude(0.2);
+
+const scene = new THREE.Scene();
+scene.add(Globe);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+container.appendChild(renderer.domElement);
+
+const camera = new THREE.PerspectiveCamera();
+camera.aspect = window.innerWidth/window.innerHeight;
+camera.updateProjectionMatrix();
+camera.position.z = 350;
+
+scene.add(new THREE.AmbientLight(0xffffff,1.2));
+const dirLight = new THREE.DirectionalLight(0xffffff,1);
+dirLight.position.set(1,1,1);
+scene.add(dirLight);
+
+// Wait for globe resources to be ready before enabling interactions
+let globeReady = false;
+try {
+  if (typeof Globe.onReady === 'function') {
+    Globe.onReady(() => {
+      globeReady = true;
+      hud.innerHTML = '🌍 Globe ready. Use Simulate Impact or click a location on Earth.';
+      simulateBtn.disabled = false;
+    });
+  } else {
+    // Fallback: assume ready after a short delay if onReady not available
+    setTimeout(() => { globeReady = true; simulateBtn.disabled = false; }, 1000);
+  }
+} catch (e) { console.warn('onReady error:', e); globeReady = true; simulateBtn.disabled = false; }
+
+function animate() {
+  Globe.rotation.y += 0.0012;
+  renderer.render(scene,camera);
+  requestAnimationFrame(animate);
+}
+animate();
+
+window.addEventListener('resize', ()=>{
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+});
+
+// === Helpers ===
+function latLngToVector3(lat,lng,radius){
+  const phi = (90-lat)*(Math.PI/180);
+  const theta = (lng+180)*(Math.PI/180);
+  const x = -radius*Math.sin(phi)*Math.cos(theta);
+  const y = radius*Math.cos(phi);
+  const z = radius*Math.sin(phi)*Math.sin(theta);
+  return new THREE.Vector3(x,y,z);
+}
+
+function calcImpact(diameter_m, velocity_m_s, density = 3000) {
+  if (typeof diameter_m !== 'number' || diameter_m <= 0) throw new Error('Invalid diameter');
+  if (typeof velocity_m_s !== 'number' || velocity_m_s <= 0) throw new Error('Invalid velocity');
+  if (typeof density !== 'number' || density <= 0) throw new Error('Invalid density');
+  const r = diameter_m / 2;
+  const volume = (4/3) * Math.PI * Math.pow(r, 3);
+  const mass = volume * density; // kg
+  const energyJ = 0.5 * mass * Math.pow(velocity_m_s, 2);
+  const energyTNT = energyJ / 4.184e9;
+  const energyMT = energyTNT / 1e6;
+  const craterKm = 1.161 * Math.pow(Math.max(energyTNT / 1000, 1), 1/3.4);
+  const fireballRadius = Math.pow(energyTNT, 0.4) * 0.1; // km
+  const thermalRadius = Math.pow(energyTNT, 0.4) * 0.5; // km
+  return { energyJ, energyTNT, energyMT, craterKm, fireballRadius, thermalRadius, mass: mass/1000 };
+}
+
+// === Simplified Meteor Launch System ===
+let meteorAnimationId = null;
+function safeGlobeRadius(){ try { const r = Globe.globeRadius(); if (typeof r==='number' && r>0) return r; } catch(_){} return 100; }
+
+// Camera shake helper
+function cameraShake(intensity=8, duration=400){
+  try {
+    const start = performance.now();
+    const original = camera.position.clone();
+    function step(now){
+      const t = Math.min((now-start)/duration, 1);
+      const falloff = 1 - t;
+      camera.position.x = original.x + (Math.random()-0.5)*intensity*falloff;
+      camera.position.y = original.y + (Math.random()-0.5)*intensity*falloff;
+      if (t < 1) requestAnimationFrame(step); else camera.position.copy(original);
+    }
+    requestAnimationFrame(step);
+  } catch(_) { /* no-op */ }
+}
+
+function surfaceNormalFromLatLng(lat, lng){
+  // Unit vector from globe center to surface point
+  const r = 1;
+  const v = latLngToVector3(lat, lng, r);
+  return v.normalize();
+}
+
+function launchMeteor(lat, lng, diameter, velocity, angleDeg) {
+  try {
+    if (meteorAnimationId) { clearInterval(meteorAnimationId); meteorAnimationId = null; }
+    const old = scene.getObjectByName('meteor'); if (old) scene.remove(old);
+    const oldExp = scene.getObjectByName('explosion'); if (oldExp) scene.remove(oldExp);
+
+    const radius = safeGlobeRadius();
+    const impactPos = latLngToVector3(lat, lng, radius * 1.01);
+
+    // Direction and start based on impact angle (0 = shallow grazing, 90 = straight down)
+    const normal = surfaceNormalFromLatLng(lat, lng);
+    let tangent = normal.clone().cross(new THREE.Vector3(0, 1, 0));
+    if (tangent.lengthSq() < 1e-6) tangent = normal.clone().cross(new THREE.Vector3(1, 0, 0));
+    tangent.normalize();
+    const phi = Math.min(Math.max((angleDeg||45) * Math.PI/180, 0), Math.PI/2);
+    // Incoming direction vector towards surface
+    const incomingDir = tangent.clone().multiplyScalar(Math.cos(phi)).add(normal.clone().multiplyScalar(-Math.sin(phi))).normalize();
+    const startPos = impactPos.clone().add(incomingDir.clone().multiplyScalar(radius * 1.6));
+    const meteorScale = Math.max(0.5, Math.min(2, diameter / 100));
+
+    // Irregular meteor shape for better 3D look
+    const meteorGeo = USE_SIMPLE_EFFECTS ? new THREE.SphereGeometry(1 * meteorScale, 12, 12) : new THREE.IcosahedronGeometry(1 * meteorScale, 1);
+    const meteorMat = USE_SIMPLE_EFFECTS ? new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.95 }) : new THREE.MeshStandardMaterial({ color: 0xff6a2a, roughness: 0.8, metalness: 0.1, emissive: 0x331100, emissiveIntensity: 0.8 });
+    const meteor = new THREE.Mesh(meteorGeo, meteorMat);
+    meteor.position.copy(startPos);
+    meteor.name = 'meteor';
+    Globe.add(meteor);
+    // Meteor glow sprite
+    let glow = null, flameLight = null;
+    if (!USE_SIMPLE_EFFECTS) {
+      const glowMat = new THREE.SpriteMaterial({ map: _glowTex, color: 0xffaa55, blending: THREE.AdditiveBlending, transparent: true, opacity: 0.9, depthWrite: false });
+      glow = new THREE.Sprite(glowMat);
+      glow.scale.set(8*meteorScale, 8*meteorScale, 1);
+      meteor.add(glow);
+      // Point light attached to meteor
+      flameLight = new THREE.PointLight(0xff9933, 2.0, radius*2);
+      meteor.add(flameLight);
+    }
+
+    // Trail particles
+    const maxTrail = 60;
+    const trailPositions = new Float32Array(maxTrail * 3);
+    const trailGeo = new THREE.BufferGeometry();
+    trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+    const trailMat = USE_SIMPLE_EFFECTS ? new THREE.PointsMaterial({ color: 0xffaa55, size: 1.2 * meteorScale, transparent: true, opacity: 0.9 }) : new THREE.PointsMaterial({ map: _glowTex, color: 0xffbb66, size: 2.0 * meteorScale, sizeAttenuation: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite:false });
+    const trail = new THREE.Points(trailGeo, trailMat);
+    trail.name = 'meteor-trail';
+    Globe.add(trail);
+
+    // Smooth RAF animation (faster)
+    const duration = 800; // ms
+    const t0 = performance.now();
+    function step(now){
+      const t = Math.min((now - t0) / duration, 1);
+      // Ease in, ease out
+      const ease = t<0.5 ? 2*t*t : -1+(4-2*t)*t;
+      meteor.position.lerpVectors(startPos, impactPos, ease);
+      meteor.rotation.x += (USE_SIMPLE_EFFECTS?0.12:0.18); meteor.rotation.y += (USE_SIMPLE_EFFECTS?0.08:0.12);
+      // Update trail (shift positions and insert current)
+      for (let i = maxTrail-1; i>0; i--) {
+        trailPositions[i*3+0] = trailPositions[(i-1)*3+0];
+        trailPositions[i*3+1] = trailPositions[(i-1)*3+1];
+        trailPositions[i*3+2] = trailPositions[(i-1)*3+2];
+      }
+      trailPositions[0] = meteor.position.x;
+      trailPositions[1] = meteor.position.y;
+      trailPositions[2] = meteor.position.z;
+      trailGeo.attributes.position.needsUpdate = true;
+      trailMat.opacity = Math.max(USE_SIMPLE_EFFECTS?0.2:0.15, 1.0 - t);
+      if (!USE_SIMPLE_EFFECTS && glow) {
+        glow.material.opacity = 0.6 + 0.4*(1.0 - t);
+        glow.scale.setScalar(6*meteorScale + 10*meteorScale*t);
+      }
+      if (!USE_SIMPLE_EFFECTS && flameLight) flameLight.intensity = 2.0 + 1.5*Math.sin(now*0.02);
+
+      if (t < 1) {
+        requestAnimationFrame(step);
+      } else {
+        Globe.remove(meteor);
+        Globe.remove(trail);
+        createExplosion(lat, lng, diameter);
+        if (!USE_SIMPLE_EFFECTS) cameraShake(8, 400);
+      }
+    }
+    requestAnimationFrame(step);
+  } catch (e) {
+    console.error(e); hud.innerHTML = `❌ ${e.message}`;
+  }
+}
+
+function createExplosion(lat, lng, diameter){
+  const radius = safeGlobeRadius() * 1.01;
+  const pos = latLngToVector3(lat, lng, radius);
+  const impactScale = Math.max(0.5, Math.min(3, diameter / 100));
+  // Fireball
+  const fire = USE_SIMPLE_EFFECTS ? new THREE.Mesh(new THREE.SphereGeometry(2*impactScale, 16, 16), new THREE.MeshBasicMaterial({color:0xff6600, transparent:true, opacity:0.9})) : new THREE.Mesh(new THREE.SphereGeometry(2*impactScale, 24, 24), new THREE.MeshBasicMaterial({color:0xff8844, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false}));
+  fire.position.copy(pos); fire.name='explosion'; Globe.add(fire);
+  // Shockwave ring aligned to surface normal
+  const normal = surfaceNormalFromLatLng(lat, lng);
+  const ring = USE_SIMPLE_EFFECTS ? new THREE.Mesh(new THREE.RingGeometry(1.5*impactScale, 2.5*impactScale, 64), new THREE.MeshBasicMaterial({color:0xffaa00, side:THREE.DoubleSide, transparent:true, opacity:0.7})) : new THREE.Mesh(new THREE.RingGeometry(1.4*impactScale, 2.6*impactScale, 64), new THREE.MeshBasicMaterial({color:0xffdd88, side:THREE.DoubleSide, transparent:true, opacity:0.85, blending:THREE.AdditiveBlending, depthWrite:false}));
+  ring.position.copy(pos);
+  const lookAt = pos.clone().add(normal);
+  ring.lookAt(lookAt);
+  Globe.add(ring);
+  // Debris burst
+  const debrisCount = USE_SIMPLE_EFFECTS ? 0 : 40;
+  const debrisPositions = new Float32Array(debrisCount*3);
+  const debrisGeo = new THREE.BufferGeometry();
+  debrisGeo.setAttribute('position', new THREE.BufferAttribute(debrisPositions, 3));
+  const debrisMat = new THREE.PointsMaterial({ map:_glowTex, color:0xffaa66, size:1.5, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false });
+  const debris = new THREE.Points(debrisGeo, debrisMat);
+  debris.position.copy(pos);
+  if (!USE_SIMPLE_EFFECTS) Globe.add(debris);
+  const dirs = [];
+  for(let i=0;i<debrisCount;i++){
+    // random hemisphere above the surface
+    const rand = new THREE.Vector3(Math.random()*2-1, Math.random(), Math.random()*2-1).normalize();
+    const dir = rand.add(normal).normalize();
+    dirs.push(dir.multiplyScalar(6*impactScale + Math.random()*6*impactScale));
+  }
+  // Animate expansion and fade
+  let t = 0; const dur = 900; const t0 = performance.now();
+  function explode(now){
+    t = Math.min((now-t0)/dur, 1);
+    const s = 1 + t*6;
+    ring.scale.set(s,s,1);
+    ring.material.opacity = Math.max(0, 0.8 - t);
+    fire.material.opacity = Math.max(0, 0.95 - t*0.9);
+    // debris outward
+    if (!USE_SIMPLE_EFFECTS && debrisCount>0) {
+      const posAttr = debrisGeo.attributes.position;
+      for(let i=0;i<debrisCount;i++){
+        posAttr.setXYZ(i, dirs[i].x*t, dirs[i].y*t, dirs[i].z*t);
+      }
+      posAttr.needsUpdate = true;
+      debris.material.opacity = Math.max(0, 0.95 - t);
+    }
+    if (t<1) requestAnimationFrame(explode); else { if(!USE_SIMPLE_EFFECTS && debrisCount>0) Globe.remove(debris); Globe.remove(ring); Globe.remove(fire); }
+  }
+  requestAnimationFrame(explode);
+}
+
+// === Click to impact (target a specific location) ===
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+renderer.domElement.addEventListener('click', (e)=>{
+  if (!globeReady) { hud.innerHTML = '⏳ Globe is loading...'; return; }
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left)/rect.width)*2 - 1;
+  mouse.y = -((e.clientY - rect.top)/rect.height)*2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObject(Globe, true);
+  if (!hits.length) return;
+  // Transform world hit point into Globe's local space to get correct lat/lng while spinning
+  const pWorld = hits[0].point;
+  const pLocal = Globe.worldToLocal(pWorld.clone());
+  const r = safeGlobeRadius();
+  const clampedY = Math.max(-1, Math.min(1, pLocal.y / r));
+  const lat = 90 - Math.acos(clampedY) * (180/Math.PI);
+  const lng = (Math.atan2(pLocal.z, -pLocal.x) * (180/Math.PI)) - 180;
+  const d = parseFloat(diameterEl.value)||100; const v = (parseFloat(velocityEl.value)||20)*1000;
+  launchMeteor(lat,lng,d,v);
+  const res = calcImpact(d,v);
+  hud.innerHTML = `🚀 Meteor launched to Lat ${lat.toFixed(2)}°, Lon ${lng.toFixed(2)}°<br>💥 Energy ${res.energyMT.toFixed(2)} MT | Crater ${res.craterKm.toFixed(2)} km`;
+});
+
+// === Simulate button (random location) ===
+simulateBtn.addEventListener('click', ()=>{
+  console.log('▶️ simulateBtn clicked');
+  if (!globeReady) { hud.innerHTML = '⏳ Globe is loading... (forcing launch with fallback radius)'; }
+  const d = parseFloat(diameterEl.value)||120; const v = (parseFloat(velocityEl.value)||20)*1000;
+  const angle = parseFloat(angleEl.value)||45;
+  const lat = (Math.random()-0.5)*180; const lng = (Math.random()-0.5)*360;
+  hud.innerHTML = `🚀 Launching meteor... Target Lat ${lat.toFixed(2)}°, Lon ${lng.toFixed(2)}°`;
+  launchMeteor(lat,lng,d,v,angle);
+  const res = calcImpact(d,v);
+  setTimeout(()=>{ hud.innerHTML = `🚀 Meteor launched! 💥 ${res.energyMT.toFixed(2)} MT | 🕳️ ${res.craterKm.toFixed(2)} km`; }, 1800);
+});
+
+// === NEO Tracker ===
+function formatDateInput(date){ const yyyy = date.getFullYear(); const mm = String(date.getMonth()+1).padStart(2,'0'); const dd = String(date.getDate()).padStart(2,'0'); return `${yyyy}-${mm}-${dd}`; }
+neoDateEl.value = formatDateInput(new Date());
+neoApiKeyEl.value = '';
+
+async function fetchNeos(dateStr, apiKey){
+  try {
+    neoStatusEl.textContent = 'Fetching...'; neoListEl.innerHTML = '';
+    const key = apiKey && apiKey.trim().length ? apiKey.trim() : 'DEMO_KEY';
+    const url = `https://api.nasa.gov/neo/rest/v1/feed?start_date=${dateStr}&end_date=${dateStr}&api_key=${key}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    const list = data.near_earth_objects?.[dateStr] || [];
+    neoStatusEl.textContent = `Found ${list.length} NEOs`;
+    renderNeoList(list);
+  } catch (e) {
+    console.error(e); neoStatusEl.textContent = `Error: ${e.message}`;
+  }
+}
+
+function renderNeoList(neos){
+  neoListEl.innerHTML='';
+  neos.forEach((neo)=>{
+    const dEst = neo.estimated_diameter?.meters;
+    const dAvg = dEst ? ((dEst.estimated_diameter_min + dEst.estimated_diameter_max)/2).toFixed(0) : '?';
+    const close = neo.close_approach_data?.[0];
+    const vKms = close ? parseFloat(close.relative_velocity.kilometers_per_second).toFixed(1) : '?';
+    const missKm = close ? parseFloat(close.miss_distance.kilometers).toFixed(0) : '?';
+    const li = document.createElement('li');
+    li.innerHTML = `<div class="neo-row"><div><b>${neo.name}</b> ${neo.is_potentially_hazardous_asteroid?'<span class="neo-danger">(PHA)</span>':''}<br><span class="neo-meta">~${dAvg} m • ${vKms} km/s • miss ${missKm} km</span></div><button class="neo-btn">Simulate</button></div>`;
+    li.querySelector('.neo-btn').addEventListener('click',()=>{
+      const diameter = isNaN(parseFloat(dAvg)) ? (parseFloat(diameterEl.value)||120) : parseFloat(dAvg);
+      const velocityMs = isNaN(parseFloat(vKms)) ? ((parseFloat(velocityEl.value)||20)*1000) : parseFloat(vKms)*1000;
+      const lat = (Math.random()-0.5)*180; const lng = (Math.random()-0.5)*360;
+      neoSelectedEl.textContent = `Selected ${neo.name} • ~${diameter.toFixed(0)} m • ${ (velocityMs/1000).toFixed(1)} km/s`;
+      launchMeteor(lat,lng,diameter,velocityMs);
+      const res = calcImpact(diameter, velocityMs);
+      hud.innerHTML = `🚀 ${neo.name} simulated • 💥 ${res.energyMT.toFixed(2)} MT • 🕳️ ${res.craterKm.toFixed(2)} km`;
+    });
+    neoListEl.appendChild(li);
+  });
+}
+
+neoFetchBtn.addEventListener('click', ()=>{
+  fetchNeos(neoDateEl.value, neoApiKeyEl.value);
+});
+neoDemoBtn.addEventListener('click', ()=>{
+  neoDateEl.value = formatDateInput(new Date());
+  fetchNeos(neoDateEl.value, neoApiKeyEl.value);
+});
+
+</script>
+</body>
+</html>
+
+
