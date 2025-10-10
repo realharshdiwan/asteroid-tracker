@@ -18,7 +18,7 @@
 
 1. **Clone this repository:**
    ```bash
-   git clone https://github.com/yourusername/asteroid-tracker.git
+   git clone https://github.com/realharshdiwan/asteroid-tracker.git
    cd asteroid-tracker
    ```
 
