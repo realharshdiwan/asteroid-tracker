@@ -3,8 +3,11 @@
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.50+-FF4B4B.svg)](https://streamlit.io)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Live Demo](https://img.shields.io/badge/Live-Demo-success.svg)](https://asteroidtracker.streamlit.app/)
 
 **Real-time monitoring and visualization dashboard for Near-Earth Objects (NEO) using NASA's API.**
+
+🚀 **[Live Demo](https://asteroidtracker.streamlit.app/)** | 📖 [Documentation](docs/DEPLOYMENT.md) | 🐙 [GitHub](https://github.com/realharshdiwan/asteroid-tracker)
 
 A production-ready, interactive web application for tracking asteroids, analyzing risk scores, and receiving alerts on potentially hazardous space objects.
 
