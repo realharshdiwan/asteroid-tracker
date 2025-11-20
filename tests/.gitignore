@@ -1,0 +1,3 @@
+# Tests directory
+__pycache__/
+*.pyc

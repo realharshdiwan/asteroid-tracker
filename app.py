@@ -82,10 +82,27 @@ st.markdown(
 )
 
 
+# =================== UTILITIES ===================
+def validate_webhook_url(url):
+    """Validate webhook URL for security."""
+    if not url:
+        return False
+    # Basic validation: must be http/https and not localhost in production
+    if not url.startswith(("http://", "https://")):
+        return False
+    # Prevent SSRF to localhost/private IPs in production
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    if parsed.hostname in ["localhost", "127.0.0.1", "0.0.0.0"]:
+        # Allow localhost only if not in production
+        return os.getenv("ENVIRONMENT", "development") == "development"
+    return True
+
 try:
     API_KEY = os.getenv("NASA_API_KEY") or st.secrets.get("NASA_API_KEY", "")
-except st.errors.StreamlitSecretNotFoundError:
+except (st.errors.StreamlitSecretNotFoundError, AttributeError):
     API_KEY = os.getenv("NASA_API_KEY", "")
+    
 today = date.today()
 default_start = today
 default_end = today + timedelta(days=7)
@@ -160,12 +177,16 @@ init_db()
 st.sidebar.title("⚙️ Controls")
 
 # Query params load
-qp = st.experimental_get_query_params()
+qp = st.query_params
+
+preset_value = qp.get("preset", "Next 7 days")
+preset_options = ["Today", "Next 3 days", "Next 7 days", "Custom"]
+preset_index = preset_options.index(preset_value) if preset_value in preset_options else 2
 
 preset = st.sidebar.radio(
     "Date range",
-    ["Today", "Next 3 days", "Next 7 days", "Custom"],
-    index=qp.get("preset", ["Next 7 days"]).index(qp.get("preset", ["Next 7 days"])[0]) if qp.get("preset") else 2,
+    preset_options,
+    index=preset_index,
     horizontal=False,
 )
 
@@ -179,22 +200,22 @@ elif preset == "Next 7 days":
     start_date = today
     end_date = today + timedelta(days=7)
 else:
-    start_date = st.sidebar.date_input("Start date", pd.to_datetime(qp.get("start", [str(default_start)])[0]).date())
-    end_date = st.sidebar.date_input("End date", pd.to_datetime(qp.get("end", [str(default_end)])[0]).date())
+    start_date = st.sidebar.date_input("Start date", pd.to_datetime(qp.get("start", str(default_start))).date())
+    end_date = st.sidebar.date_input("End date", pd.to_datetime(qp.get("end", str(default_end))).date())
 
-size_threshold = st.sidebar.slider("Min diameter (m)", 0, 2000, int(qp.get("min_d", [100])[0]), 50)
-distance_threshold_km = st.sidebar.slider("Hazard distance (< km)", 100000, 5000000, int(qp.get("haz_km", [1000000])[0]), 50000)
-unit_speed = st.sidebar.selectbox("Speed unit", ["kph", "km/s"], index=(0 if qp.get("unit", ["km/s"])[0] == "kph" else 1))
+size_threshold = st.sidebar.slider("Min diameter (m)", 0, 2000, int(qp.get("min_d", "100")), 50)
+distance_threshold_km = st.sidebar.slider("Hazard distance (< km)", 100000, 5000000, int(qp.get("haz_km", "1000000")), 50000)
+unit_speed = st.sidebar.selectbox("Speed unit", ["kph", "km/s"], index=(0 if qp.get("unit", "km/s") == "kph" else 1))
 
 # Advanced filters
-name_query = st.sidebar.text_input("Search name contains", qp.get("q", [""])[0])
-min_distance = st.sidebar.number_input("Min distance (km)", min_value=0, value=int(qp.get("min_km", [0])[0]))
-max_distance = st.sidebar.number_input("Max distance (km)", min_value=0, value=int(qp.get("max_km", [0])[0]))
+name_query = st.sidebar.text_input("Search name contains", qp.get("q", ""))
+min_distance = st.sidebar.number_input("Min distance (km)", min_value=0, value=int(qp.get("min_km", "0")))
+max_distance = st.sidebar.number_input("Max distance (km)", min_value=0, value=int(qp.get("max_km", "0")))
 
 # Risk weights (normalized)
-w_d = float(qp.get("w_d", [0.5])[0])
-w_di = float(qp.get("w_di", [0.3])[0])
-w_v = float(qp.get("w_v", [0.2])[0])
+w_d = float(qp.get("w_d", "0.5"))
+w_di = float(qp.get("w_di", "0.3"))
+w_v = float(qp.get("w_v", "0.2"))
 st.sidebar.markdown("### Risk weights")
 w_d = st.sidebar.slider("Weight: diameter", 0.0, 1.0, w_d, 0.05)
 w_di = st.sidebar.slider("Weight: inverse distance", 0.0, 1.0, w_di, 0.05)
@@ -203,11 +224,11 @@ w_sum = max(w_d + w_di + w_v, 1e-9)
 w_d, w_di, w_v = w_d / w_sum, w_di / w_sum, w_v / w_sum
 
 # Webhook alerts
-enable_alerts = st.sidebar.checkbox("Enable webhook alerts", value=(qp.get("alerts", ["0"])[0] == "1"))
-webhook_url = st.sidebar.text_input("Webhook URL", qp.get("wh", [""])[0])
+enable_alerts = st.sidebar.checkbox("Enable webhook alerts", value=(qp.get("alerts", "0") == "1"))
+webhook_url = st.sidebar.text_input("Webhook URL", qp.get("wh", ""))
 
 # Sync query params
-st.experimental_set_query_params(
+st.query_params.update(
     preset=preset,
     start=str(start_date),
     end=str(end_date),
@@ -466,14 +487,20 @@ with tab_overview:
         )
         # Alerts webhook
         if enable_alerts and webhook_url and not danger.empty:
-            try:
-                payload = danger[["date","name","diameter_m","distance_km","velocity_kph","risk_score"]].to_dict(orient="records")
-                alert_body = {"hazards": payload, "preset": preset, "range": [str(start_date), str(end_date)]}
-                requests.post(webhook_url, json=alert_body, timeout=5)
-                db_add_alert(alert_body)
-                st.info("Alert webhook posted.")
-            except Exception:
-                st.warning("Failed to post webhook alert.")
+            if not validate_webhook_url(webhook_url):
+                st.error("⚠️ Invalid webhook URL. Must be a valid HTTP/HTTPS endpoint.")
+            else:
+                try:
+                    payload = danger[["date","name","diameter_m","distance_km","velocity_kph","risk_score"]].to_dict(orient="records")
+                    alert_body = {"hazards": payload, "preset": preset, "range": [str(start_date), str(end_date)]}
+                    resp = requests.post(webhook_url, json=alert_body, timeout=5)
+                    resp.raise_for_status()
+                    db_add_alert(alert_body)
+                    st.success(f"✅ Alert webhook posted successfully (status {resp.status_code})")
+                except requests.RequestException as e:
+                    st.error(f"❌ Failed to post webhook alert: {str(e)}")
+                except Exception as e:
+                    st.error(f"❌ Unexpected error posting webhook: {str(e)}")
     else:
         st.info("Adjust filters or date range to see results.")
 
