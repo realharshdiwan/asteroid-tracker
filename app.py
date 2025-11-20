@@ -328,7 +328,7 @@ st.markdown(
     """
     <div style="padding: 12px 16px; background: linear-gradient(90deg,#0b1224,#0f1a36); border:1px solid #26365e33; border-radius: 12px;">
       <h1 style="margin:0">🌌 Asteroid Tracker</h1>
-      <p style="margin: 4px 0 0 0; color:#cfd8ff">Real-time NASA NEO dashboard — interactive, educational, hackathon-ready.</p>
+      <p style="margin: 4px 0 0 0; color:#cfd8ff">Real-time NASA NEO dashboard for monitoring near-Earth asteroids.</p>
     </div>
     """,
     unsafe_allow_html=True,
